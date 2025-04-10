@@ -2,7 +2,8 @@
 import { useEffect } from 'react';
 import AppSidebar from './AppSidebar';
 import AppHeader from './AppHeader';
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarProvider } from "@/components/ui/sidebar";
+import RLSDebugger from '@/components/debug/RLSDebugger';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -14,6 +15,9 @@ const AppLayout = ({ children }: AppLayoutProps) => {
     document.title = 'Money Tracker';
   }, []);
 
+  // Check if we're in development mode
+  const isDev = import.meta.env.DEV;
+
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
@@ -24,6 +28,9 @@ const AppLayout = ({ children }: AppLayoutProps) => {
             {children}
           </main>
         </div>
+        
+        {/* Show RLS debugger only in development mode */}
+        <RLSDebugger visible={isDev} />
       </div>
     </SidebarProvider>
   );
