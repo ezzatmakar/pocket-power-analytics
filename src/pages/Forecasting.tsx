@@ -16,28 +16,103 @@ import {
   ReferenceLine 
 } from 'recharts';
 import { TrendingUp, TrendingDown, CandlestickChart, Briefcase } from 'lucide-react';
-import { mockProjects, getForecastIncome } from '@/services/mockData';
+import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+import { Button } from '@/components/ui/button';
+import { toast } from '@/components/ui/use-toast';
+
+interface Project {
+  id: string;
+  name: string;
+  total_fee: number;
+  my_percentage: number;
+  start_date: string;
+  is_active: boolean;
+  is_forecast: boolean;
+}
+
+interface ForecastData {
+  name: string;
+  projected: number;
+  bestCase: number;
+  worstCase: number;
+}
 
 const Forecasting = () => {
-  const [forecastData, setForecastData] = useState<any[]>([]);
-  
+  const { user } = useAuth();
+  const [forecastData, setForecastData] = useState<ForecastData[]>([]);
+
+  // Fetch forecast projects from Supabase
+  const { data: forecastProjects = [], isLoading, error } = useQuery({
+    queryKey: ['forecastProjects', user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      
+      const { data, error } = await supabase
+        .from('projects')
+        .select('*')
+        .eq('is_forecast', true)
+        .eq('user_id', user.id)
+        .order('start_date', { ascending: true });
+      
+      if (error) {
+        console.error('Error fetching forecast projects:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to load forecast projects',
+          variant: 'destructive',
+        });
+        return [];
+      }
+      
+      return data as Project[];
+    },
+    enabled: !!user,
+  });
+
+  // Calculate forecast data based on projects
   useEffect(() => {
-    // Get forecast for next 12 months
-    const forecastValues = getForecastIncome(12);
-    
-    // Creating forecast data (next 12 months)
+    if (!forecastProjects?.length) {
+      // Create sample forecast data if no projects exist
+      generateSampleForecastData();
+      return;
+    }
+
+    // Generate forecast data for the next 12 months
     const today = new Date();
     const forecastMonths = [];
+    
     for (let i = 0; i < 12; i++) {
       const month = new Date(today);
       month.setMonth(today.getMonth() + i);
       forecastMonths.push(month.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }));
     }
-    
+
+    // Base monthly salary (hardcoded for now, could be user setting)
+    const baseSalary = 5000;
+
+    // Calculate forecasted income for each month
     const forecastChartData = forecastMonths.map((month, index) => {
-      let projected = forecastValues[index];
+      // For each month, calculate which projects will be active
+      const monthDate = new Date(today);
+      monthDate.setMonth(today.getMonth() + index);
+
+      // Get projects that will be active in this month
+      const activeProjectsInMonth = forecastProjects.filter(project => {
+        const projectStartDate = new Date(project.start_date);
+        return projectStartDate <= monthDate && project.is_active;
+      });
+
+      // Calculate projected income from projects
+      let projectIncome = activeProjectsInMonth.reduce((sum, project) => {
+        return sum + (project.total_fee * project.my_percentage / 100);
+      }, 0);
+
+      // Total projected income for the month (base + projects)
+      let projected = baseSalary + projectIncome;
       
-      // Calculate a realistic best and worst case
+      // Calculate best and worst case scenarios
       const bestCase = Math.round(projected * 1.2); // 20% better
       const worstCase = Math.round(projected * 0.8); // 20% worse
       
@@ -50,10 +125,48 @@ const Forecasting = () => {
     });
     
     setForecastData(forecastChartData);
-  }, []);
-  
-  // Filter forecast projects
-  const forecastProjects = mockProjects.filter(p => p.isForecast);
+  }, [forecastProjects]);
+
+  // Generate sample forecast data if no projects exist
+  const generateSampleForecastData = () => {
+    const today = new Date();
+    const forecastMonths = [];
+    
+    for (let i = 0; i < 12; i++) {
+      const month = new Date(today);
+      month.setMonth(today.getMonth() + i);
+      forecastMonths.push(month.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }));
+    }
+    
+    // Sample forecast values with monthly growth
+    let baseSalary = 5000;
+    const forecastChartData = forecastMonths.map((month, index) => {
+      // Simulate growth over time
+      const projected = baseSalary + (index * 200);
+      
+      return {
+        name: month,
+        projected,
+        bestCase: Math.round(projected * 1.2),
+        worstCase: Math.round(projected * 0.8)
+      };
+    });
+    
+    setForecastData(forecastChartData);
+  };
+
+  // Calculate total projected additional monthly income
+  const totalProjectedIncome = forecastProjects?.reduce((sum, project) => {
+    return sum + (project.total_fee * project.my_percentage / 100);
+  }, 0) || 0;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-money-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -210,12 +323,12 @@ const Forecasting = () => {
                       <tr key={project.id} className="border-b transition-colors hover:bg-slate-50">
                         <td className="p-4 align-middle font-medium">{project.name}</td>
                         <td className="p-4 align-middle">
-                          {new Date(project.startDate).toLocaleDateString()}
+                          {new Date(project.start_date).toLocaleDateString()}
                         </td>
-                        <td className="p-4 align-middle">${project.totalFee.toLocaleString()}</td>
-                        <td className="p-4 align-middle">{project.myPercentage}%</td>
+                        <td className="p-4 align-middle">${Number(project.total_fee).toLocaleString()}</td>
+                        <td className="p-4 align-middle">{project.my_percentage}%</td>
                         <td className="p-4 align-middle text-right font-medium text-money-warning">
-                          ${(project.totalFee * project.myPercentage / 100).toLocaleString()}
+                          ${(Number(project.total_fee) * project.my_percentage / 100).toLocaleString()}
                         </td>
                       </tr>
                     ))}
@@ -224,9 +337,7 @@ const Forecasting = () => {
                     <tr className="border-t bg-slate-50">
                       <td colSpan={4} className="p-4 align-middle font-medium">Projected Additional Monthly Income</td>
                       <td className="p-4 align-middle text-right font-bold text-money-success">
-                        ${forecastProjects.reduce((sum, project) => {
-                          return sum + (project.totalFee * project.myPercentage / 100);
-                        }, 0).toLocaleString()}
+                        ${totalProjectedIncome.toLocaleString()}
                       </td>
                     </tr>
                   </tfoot>
@@ -237,7 +348,13 @@ const Forecasting = () => {
             <div className="text-center py-10">
               <Briefcase className="h-12 w-12 text-slate-300 mx-auto mb-4" />
               <h3 className="text-xl font-medium mb-2">No Forecast Projects</h3>
-              <p className="text-muted-foreground">Add forecast projects to see your future income potential.</p>
+              <p className="text-muted-foreground">Add forecast projects in the Projects page to see your future income potential.</p>
+              <Button 
+                onClick={() => window.location.href = '/projects'} 
+                className="mt-4"
+              >
+                Go to Projects
+              </Button>
             </div>
           )}
         </CardContent>

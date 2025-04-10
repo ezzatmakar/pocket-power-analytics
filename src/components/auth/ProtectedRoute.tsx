@@ -1,30 +1,27 @@
 
-import { Navigate, Outlet } from 'react-router-dom';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2 } from 'lucide-react';
-import AppLayout from '@/components/layout/AppLayout';
 
 const ProtectedRoute = () => {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { user, loading } = useAuth();
+  const location = useLocation();
 
-  if (isLoading) {
+  // Show loading state while checking authentication
+  if (loading) {
     return (
-      <div className="h-screen w-full flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-money-primary" />
-        <span className="ml-2 text-lg">Loading...</span>
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
   }
 
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+  // Redirect to login if not authenticated
+  if (!user) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  return (
-    <AppLayout>
-      <Outlet />
-    </AppLayout>
-  );
+  // Render child routes if authenticated
+  return <Outlet />;
 };
 
 export default ProtectedRoute;

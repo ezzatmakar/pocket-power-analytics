@@ -9,7 +9,104 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      income: {
+        Row: {
+          amount: number
+          created_at: string
+          date: string
+          description: string | null
+          id: string
+          project_id: string | null
+          type: string
+          user_id: string | null
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          date?: string
+          description?: string | null
+          id?: string
+          project_id?: string | null
+          type: string
+          user_id?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          date?: string
+          description?: string | null
+          id?: string
+          project_id?: string | null
+          type?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "income_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projects: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          is_forecast: boolean
+          my_percentage: number
+          name: string
+          start_date: string
+          total_fee: number
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_forecast?: boolean
+          my_percentage?: number
+          name: string
+          start_date?: string
+          total_fee?: number
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_forecast?: boolean
+          my_percentage?: number
+          name?: string
+          start_date?: string
+          total_fee?: number
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      yearly_trends: {
+        Row: {
+          id: string
+          income: number
+          user_id: string | null
+          year: number
+        }
+        Insert: {
+          id?: string
+          income?: number
+          user_id?: string | null
+          year: number
+        }
+        Update: {
+          id?: string
+          income?: number
+          user_id?: string | null
+          year?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
