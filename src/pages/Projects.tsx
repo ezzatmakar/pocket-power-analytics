@@ -31,20 +31,21 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Briefcase, Plus, MoreVertical, Edit, Trash, Check, X, Search, ArrowDown, ArrowUp, Filter } from 'lucide-react';
-import { mockProjects } from '@/services/mockData';
+import { Briefcase, Plus, MoreVertical, Edit, Trash, Check, X, Search, ArrowDown, ArrowUp, Filter, Loader2 } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from '@/contexts/AuthContext';
+import type { Database } from '@/integrations/supabase/types';
 
 // Type definition for project data
 interface Project {
   id: string;
   name: string;
-  totalFee: number;
-  myPercentage: number;
-  startDate: string;
-  isActive: boolean;
-  isForecast: boolean;
+  total_fee: number;
+  my_percentage: number;
+  start_date: string;
+  is_active: boolean;
+  is_forecast: boolean;
 }
 
 // Type definition for sort config
@@ -55,7 +56,7 @@ interface SortConfig {
 
 const Projects = () => {
   const [activeTab, setActiveTab] = useState('current');
-  const [projects, setProjects] = useState<Project[]>(mockProjects);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [filteredProjects, setFilteredProjects] = useState<Project[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
@@ -63,59 +64,180 @@ const Projects = () => {
     key: null,
     direction: 'desc'
   });
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
   
   const [newProject, setNewProject] = useState({
     name: '',
-    totalFee: '',
-    myPercentage: '',
-    startDate: new Date().toISOString().split('T')[0],
-    isActive: true,
-    isForecast: false
+    total_fee: '',
+    my_percentage: '',
+    start_date: new Date().toISOString().split('T')[0],
+    is_active: true,
+    is_forecast: false
   });
   
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+
+  // Fetch projects from Supabase
+  useEffect(() => {
+    const fetchProjects = async () => {
+      try {
+        setLoading(true);
+        if (!user) return;
+
+        const { data, error } = await supabase
+          .from('projects')
+          .select('*')
+          .eq('user_id', user.id);
+
+        if (error) {
+          throw error;
+        }
+
+        setProjects(data || []);
+      } catch (error) {
+        console.error('Error fetching projects:', error);
+        toast({
+          title: "Error",
+          description: "Failed to fetch projects. Please try again.",
+          variant: "destructive"
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProjects();
+  }, [user]);
   
   // Handle form submit
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    toast({
-      title: "Project Added",
-      description: `${newProject.name} has been added to your ${newProject.isForecast ? 'forecast' : 'current'} projects.`,
-    });
-    
-    setIsDialogOpen(false);
-    setNewProject({
-      name: '',
-      totalFee: '',
-      myPercentage: '',
-      startDate: new Date().toISOString().split('T')[0],
-      isActive: true,
-      isForecast: false
-    });
+    if (!user) {
+      toast({
+        title: "Authentication Error",
+        description: "You must be logged in to add a project.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const projectData = {
+        name: newProject.name,
+        total_fee: Number(newProject.total_fee),
+        my_percentage: Number(newProject.my_percentage),
+        start_date: newProject.start_date,
+        is_active: newProject.is_active,
+        is_forecast: newProject.is_forecast,
+        user_id: user.id
+      };
+
+      const { data, error } = await supabase
+        .from('projects')
+        .insert([projectData])
+        .select();
+
+      if (error) {
+        throw error;
+      }
+
+      setProjects([...projects, data[0]]);
+      
+      toast({
+        title: "Project Added",
+        description: `${newProject.name} has been added to your ${newProject.is_forecast ? 'forecast' : 'current'} projects.`,
+      });
+      
+      setIsDialogOpen(false);
+      setNewProject({
+        name: '',
+        total_fee: '',
+        my_percentage: '',
+        start_date: new Date().toISOString().split('T')[0],
+        is_active: true,
+        is_forecast: false
+      });
+    } catch (error) {
+      console.error('Error adding project:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add project. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
   
   // Handle project actions
-  const handleProjectAction = (action: string, projectId: string, projectName: string) => {
-    if (action === 'delete') {
+  const handleProjectAction = async (action: string, projectId: string, projectName: string) => {
+    try {
+      if (action === 'delete') {
+        const { error } = await supabase
+          .from('projects')
+          .delete()
+          .eq('id', projectId);
+
+        if (error) throw error;
+
+        setProjects(projects.filter(project => project.id !== projectId));
+        
+        toast({
+          title: "Project Deleted",
+          description: `${projectName} has been removed from your projects.`,
+        });
+      } else if (action === 'edit') {
+        // For now, just show a toast - edit functionality would be implemented in a separate dialog
+        toast({
+          title: "Edit Project",
+          description: `You can now edit ${projectName}.`,
+        });
+      } else if (action === 'toggle') {
+        const projectToUpdate = projects.find(project => project.id === projectId);
+        if (!projectToUpdate) return;
+
+        const { error } = await supabase
+          .from('projects')
+          .update({ is_active: !projectToUpdate.is_active })
+          .eq('id', projectId);
+
+        if (error) throw error;
+
+        setProjects(projects.map(project => 
+          project.id === projectId 
+            ? { ...project, is_active: !project.is_active } 
+            : project
+        ));
+        
+        toast({
+          title: "Project Status Updated",
+          description: `${projectName} has been ${projectToUpdate.is_active ? 'deactivated' : 'activated'}.`,
+        });
+      } else if (action === 'convert') {
+        const { error } = await supabase
+          .from('projects')
+          .update({ is_forecast: false })
+          .eq('id', projectId);
+
+        if (error) throw error;
+
+        setProjects(projects.map(project => 
+          project.id === projectId 
+            ? { ...project, is_forecast: false } 
+            : project
+        ));
+        
+        toast({
+          title: "Project Converted",
+          description: `${projectName} has been converted to a current project.`,
+        });
+      }
+    } catch (error) {
+      console.error(`Error performing ${action} action:`, error);
       toast({
-        title: "Project Deleted",
-        description: `${projectName} has been removed from your projects.`,
-      });
-    } else if (action === 'edit') {
-      toast({
-        title: "Edit Project",
-        description: `You can now edit ${projectName}.`,
-      });
-    } else if (action === 'toggle') {
-      toast({
-        title: "Project Status Updated",
-        description: `${projectName} has been ${projectName.includes('inactive') ? 'activated' : 'deactivated'}.`,
-      });
-    } else if (action === 'convert') {
-      toast({
-        title: "Project Converted",
-        description: `${projectName} has been converted to a current project.`,
+        title: "Error",
+        description: `Failed to ${action} project. Please try again.`,
+        variant: "destructive"
       });
     }
   };
@@ -147,8 +269,8 @@ const Projects = () => {
     
     // Filter by tab
     result = result.filter(project => {
-      if (activeTab === 'current') return !project.isForecast;
-      if (activeTab === 'forecast') return project.isForecast;
+      if (activeTab === 'current') return !project.is_forecast;
+      if (activeTab === 'forecast') return project.is_forecast;
       return true;
     });
     
@@ -162,9 +284,9 @@ const Projects = () => {
     // Apply status filter
     if (statusFilter) {
       if (statusFilter === 'active') {
-        result = result.filter(project => project.isActive);
+        result = result.filter(project => project.is_active);
       } else if (statusFilter === 'inactive') {
-        result = result.filter(project => !project.isActive);
+        result = result.filter(project => !project.is_active);
       }
     }
     
@@ -204,6 +326,15 @@ const Projects = () => {
     if (sortConfig.key !== key) return null;
     return sortConfig.direction === 'asc' ? <ArrowUp className="h-4 w-4 ml-1" /> : <ArrowDown className="h-4 w-4 ml-1" />;
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-money-primary" />
+        <span className="ml-2">Loading projects...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -247,8 +378,8 @@ const Projects = () => {
                     id="totalFee"
                     type="number"
                     placeholder="0.00"
-                    value={newProject.totalFee}
-                    onChange={(e) => setNewProject({...newProject, totalFee: e.target.value})}
+                    value={newProject.total_fee}
+                    onChange={(e) => setNewProject({...newProject, total_fee: e.target.value})}
                     required
                   />
                 </div>
@@ -261,8 +392,8 @@ const Projects = () => {
                     placeholder="0"
                     min="1"
                     max="100"
-                    value={newProject.myPercentage}
-                    onChange={(e) => setNewProject({...newProject, myPercentage: e.target.value})}
+                    value={newProject.my_percentage}
+                    onChange={(e) => setNewProject({...newProject, my_percentage: e.target.value})}
                     required
                   />
                 </div>
@@ -272,8 +403,8 @@ const Projects = () => {
                   <Input
                     id="startDate"
                     type="date"
-                    value={newProject.startDate}
-                    onChange={(e) => setNewProject({...newProject, startDate: e.target.value})}
+                    value={newProject.start_date}
+                    onChange={(e) => setNewProject({...newProject, start_date: e.target.value})}
                     required
                   />
                 </div>
@@ -282,8 +413,8 @@ const Projects = () => {
                   <Label htmlFor="isForecast">Add as Forecast Project</Label>
                   <Switch
                     id="isForecast"
-                    checked={newProject.isForecast}
-                    onCheckedChange={(checked) => setNewProject({...newProject, isForecast: checked})}
+                    checked={newProject.is_forecast}
+                    onCheckedChange={(checked) => setNewProject({...newProject, is_forecast: checked})}
                   />
                 </div>
                 
@@ -291,8 +422,8 @@ const Projects = () => {
                   <Label htmlFor="isActive">Active Project</Label>
                   <Switch
                     id="isActive"
-                    checked={newProject.isActive}
-                    onCheckedChange={(checked) => setNewProject({...newProject, isActive: checked})}
+                    checked={newProject.is_active}
+                    onCheckedChange={(checked) => setNewProject({...newProject, is_active: checked})}
                   />
                 </div>
               </div>
@@ -367,34 +498,34 @@ const Projects = () => {
                       </TableHead>
                       <TableHead 
                         className="cursor-pointer hover:bg-muted/50"
-                        onClick={() => handleSort('startDate')}
+                        onClick={() => handleSort('start_date')}
                       >
                         <div className="flex items-center">
-                          Start Date {getSortIcon('startDate')}
+                          Start Date {getSortIcon('start_date')}
                         </div>
                       </TableHead>
                       <TableHead 
                         className="cursor-pointer hover:bg-muted/50"
-                        onClick={() => handleSort('totalFee')}
+                        onClick={() => handleSort('total_fee')}
                       >
                         <div className="flex items-center">
-                          Total Fee {getSortIcon('totalFee')}
+                          Total Fee {getSortIcon('total_fee')}
                         </div>
                       </TableHead>
                       <TableHead 
                         className="cursor-pointer hover:bg-muted/50"
-                        onClick={() => handleSort('myPercentage')}
+                        onClick={() => handleSort('my_percentage')}
                       >
                         <div className="flex items-center">
-                          Your % {getSortIcon('myPercentage')}
+                          Your % {getSortIcon('my_percentage')}
                         </div>
                       </TableHead>
                       <TableHead 
                         className="cursor-pointer hover:bg-muted/50"
-                        onClick={() => handleSort('isActive')}
+                        onClick={() => handleSort('is_active')}
                       >
                         <div className="flex items-center">
-                          Status {getSortIcon('isActive')}
+                          Status {getSortIcon('is_active')}
                         </div>
                       </TableHead>
                       <TableHead>Your Share</TableHead>
@@ -405,11 +536,11 @@ const Projects = () => {
                     {filteredProjects.map((project) => (
                       <TableRow key={project.id}>
                         <TableCell className="font-medium">{project.name}</TableCell>
-                        <TableCell>{new Date(project.startDate).toLocaleDateString()}</TableCell>
-                        <TableCell>${project.totalFee.toLocaleString()}</TableCell>
-                        <TableCell>{project.myPercentage}%</TableCell>
+                        <TableCell>{new Date(project.start_date).toLocaleDateString()}</TableCell>
+                        <TableCell>${project.total_fee.toLocaleString()}</TableCell>
+                        <TableCell>{project.my_percentage}%</TableCell>
                         <TableCell>
-                          {project.isActive ? (
+                          {project.is_active ? (
                             <span className="text-green-600 flex items-center gap-1">
                               <Check className="h-3 w-3" /> Active
                             </span>
@@ -420,7 +551,7 @@ const Projects = () => {
                           )}
                         </TableCell>
                         <TableCell className="font-bold text-money-primary">
-                          ${(project.totalFee * (project.myPercentage / 100)).toLocaleString()}
+                          ${(project.total_fee * (project.my_percentage / 100)).toLocaleString()}
                         </TableCell>
                         <TableCell className="text-right">
                           <DropdownMenu>
@@ -436,7 +567,7 @@ const Projects = () => {
                                 <Edit className="mr-2 h-4 w-4" /> Edit
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleProjectAction('toggle', project.id, project.name)}>
-                                {project.isActive ? (
+                                {project.is_active ? (
                                   <>
                                     <X className="mr-2 h-4 w-4" /> Deactivate
                                   </>
@@ -487,26 +618,26 @@ const Projects = () => {
                       </TableHead>
                       <TableHead 
                         className="cursor-pointer hover:bg-muted/50"
-                        onClick={() => handleSort('startDate')}
+                        onClick={() => handleSort('start_date')}
                       >
                         <div className="flex items-center">
-                          Start Date {getSortIcon('startDate')}
+                          Start Date {getSortIcon('start_date')}
                         </div>
                       </TableHead>
                       <TableHead 
                         className="cursor-pointer hover:bg-muted/50"
-                        onClick={() => handleSort('totalFee')}
+                        onClick={() => handleSort('total_fee')}
                       >
                         <div className="flex items-center">
-                          Total Fee {getSortIcon('totalFee')}
+                          Total Fee {getSortIcon('total_fee')}
                         </div>
                       </TableHead>
                       <TableHead 
                         className="cursor-pointer hover:bg-muted/50"
-                        onClick={() => handleSort('myPercentage')}
+                        onClick={() => handleSort('my_percentage')}
                       >
                         <div className="flex items-center">
-                          Your % {getSortIcon('myPercentage')}
+                          Your % {getSortIcon('my_percentage')}
                         </div>
                       </TableHead>
                       <TableHead>Your Share</TableHead>
@@ -517,11 +648,11 @@ const Projects = () => {
                     {filteredProjects.map((project) => (
                       <TableRow key={project.id}>
                         <TableCell className="font-medium">{project.name}</TableCell>
-                        <TableCell>{new Date(project.startDate).toLocaleDateString()}</TableCell>
-                        <TableCell>${project.totalFee.toLocaleString()}</TableCell>
-                        <TableCell>{project.myPercentage}%</TableCell>
+                        <TableCell>{new Date(project.start_date).toLocaleDateString()}</TableCell>
+                        <TableCell>${project.total_fee.toLocaleString()}</TableCell>
+                        <TableCell>{project.my_percentage}%</TableCell>
                         <TableCell className="font-bold text-money-warning">
-                          ${(project.totalFee * (project.myPercentage / 100)).toLocaleString()}
+                          ${(project.total_fee * (project.my_percentage / 100)).toLocaleString()}
                         </TableCell>
                         <TableCell className="text-right">
                           <DropdownMenu>
