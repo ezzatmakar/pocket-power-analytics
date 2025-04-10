@@ -1,10 +1,10 @@
 
-import { useEffect } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
+import AppLayout from '@/components/layout/AppLayout';
 
-const Index = () => {
+const ProtectedRoute = () => {
   const { isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
@@ -16,8 +16,15 @@ const Index = () => {
     );
   }
 
-  // Redirect to dashboard if authenticated, otherwise to login
-  return <Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />;
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return (
+    <AppLayout>
+      <Outlet />
+    </AppLayout>
+  );
 };
 
-export default Index;
+export default ProtectedRoute;
