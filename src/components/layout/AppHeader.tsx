@@ -5,6 +5,12 @@ import { Bell, Search, User } from 'lucide-react';
 
 const AppHeader = () => {
   const { user } = useAuth();
+  
+  // Get user display name from the metadata or email
+  const displayName = user?.user_metadata?.name || 
+                      user?.user_metadata?.full_name || 
+                      user?.email?.split('@')[0] || 
+                      'User';
 
   return (
     <header className="h-16 border-b flex items-center justify-between px-6 bg-white">
@@ -25,7 +31,7 @@ const AppHeader = () => {
           <Bell className="h-5 w-5 text-slate-600" />
         </button>
         <div className="flex items-center">
-          <span className="mr-2 font-medium hidden md:block">{user?.name || 'User'}</span>
+          <span className="mr-2 font-medium hidden md:block">{displayName}</span>
           <div className="h-8 w-8 bg-money-primary text-white rounded-full flex items-center justify-center">
             <User className="h-5 w-5" />
           </div>

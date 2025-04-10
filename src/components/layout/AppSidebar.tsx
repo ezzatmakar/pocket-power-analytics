@@ -25,7 +25,7 @@ import {
 const AppSidebar = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { logout } = useAuth();
+  const { signOut } = useAuth();
 
   const menuItems = [
     {
@@ -94,7 +94,7 @@ const AppSidebar = () => {
       
       <SidebarFooter className="px-5 py-4">
         <button 
-          onClick={logout}
+          onClick={signOut}
           className="flex items-center px-3 py-2 w-full rounded-md text-white hover:bg-sidebar-accent transition-colors"
         >
           <LogOut className="h-4 w-4 mr-3" />

@@ -55,10 +55,16 @@ const Dashboard = () => {
   const activeProjects = mockProjects.filter(p => p.isActive && !p.isForecast).length;
   const forecastProjects = mockProjects.filter(p => p.isForecast).length;
 
+  // Get user display name from metadata or email
+  const displayName = user?.user_metadata?.name || 
+                      user?.user_metadata?.full_name || 
+                      user?.email?.split('@')[0] || 
+                      'User';
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">Welcome back, {user?.name || 'User'}</h2>
+        <h2 className="text-3xl font-bold tracking-tight">Welcome back, {displayName}</h2>
         <p className="text-muted-foreground">Here's an overview of your income stats</p>
       </div>
       

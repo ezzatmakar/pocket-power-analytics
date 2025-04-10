@@ -7,14 +7,20 @@ interface AuthContextProps {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  isLoading: boolean; // Alias for loading
+  isAuthenticated: boolean; // Computed property
   signOut: () => Promise<void>;
+  logout: () => Promise<void>; // Alias for signOut
 }
 
 const AuthContext = createContext<AuthContextProps>({
   user: null,
   session: null,
   loading: true,
+  isLoading: true,
+  isAuthenticated: false,
   signOut: async () => {},
+  logout: async () => {},
 });
 
 interface AuthProviderProps {
@@ -56,7 +62,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     user,
     session,
     loading,
+    isLoading: loading, // Alias for loading
+    isAuthenticated: !!user, // Computed property based on user existence
     signOut,
+    logout: signOut, // Alias for signOut
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

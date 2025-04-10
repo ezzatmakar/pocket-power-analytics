@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -21,10 +20,15 @@ import {
 import { toast } from '@/components/ui/use-toast';
 
 const Settings = () => {
-  const { user, logout } = useAuth();
+  const { user, signOut } = useAuth();
+  
+  const displayName = user?.user_metadata?.name || 
+                      user?.user_metadata?.full_name || 
+                      user?.email?.split('@')[0] || 
+                      'User';
   
   const [profileForm, setProfileForm] = useState({
-    name: user?.name || '',
+    name: displayName,
     email: user?.email || '',
     isSubmitting: false
   });
@@ -148,7 +152,7 @@ const Settings = () => {
                 <Button 
                   type="button" 
                   variant="outline" 
-                  onClick={logout}
+                  onClick={signOut}
                 >
                   Log Out
                 </Button>
