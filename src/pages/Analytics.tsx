@@ -20,10 +20,31 @@ import {
 import { BarChart3, PieChart as PieChartIcon, TrendingUp } from 'lucide-react';
 import { mockIncome, mockProjects, getMonthlyIncome, getMonthNames, getIncomeByType } from '@/services/mockData';
 
+// Define an interface for monthly chart data to fix TypeScript errors
+interface MonthlyChartData {
+  name: string;
+  total: number;
+  salary: number;
+  support: number;
+  freelance: number;
+}
+
+// Define an interface for income distribution data
+interface IncomeDistributionData {
+  name: string;
+  value: number;
+}
+
+// Define an interface for yearly trend data
+interface YearlyTrendData {
+  name: string;
+  income: number;
+}
+
 const Analytics = () => {
-  const [monthlyData, setMonthlyData] = useState<any[]>([]);
-  const [yearlyData, setYearlyData] = useState<any[]>([]);
-  const [incomeDistribution, setIncomeDistribution] = useState<any[]>([]);
+  const [monthlyData, setMonthlyData] = useState<MonthlyChartData[]>([]);
+  const [yearlyData, setYearlyData] = useState<YearlyTrendData[]>([]);
+  const [incomeDistribution, setIncomeDistribution] = useState<IncomeDistributionData[]>([]);
   
   useEffect(() => {
     // Prepare monthly data for charts
@@ -31,9 +52,13 @@ const Analytics = () => {
     const incomeValues = getMonthlyIncome();
     
     const monthlyChartData = monthNames.map((month, index) => {
-      const data = {
+      // Initialize with all required properties to satisfy TypeScript
+      const data: MonthlyChartData = {
         name: month,
-        total: incomeValues[index]
+        total: incomeValues[index],
+        salary: 0,
+        support: 0,
+        freelance: 0
       };
       
       // Count income by type for this month
@@ -63,7 +88,7 @@ const Analytics = () => {
     const supportTotal = getIncomeByType('support');
     const freelanceTotal = getIncomeByType('freelance');
     
-    const distributionData = [
+    const distributionData: IncomeDistributionData[] = [
       { name: 'Salary', value: salaryTotal },
       { name: 'Support Fees', value: supportTotal },
       { name: 'Freelance', value: freelanceTotal }
@@ -71,7 +96,7 @@ const Analytics = () => {
     
     // Calculate yearly data
     const currentYear = new Date().getFullYear();
-    const yearData = [
+    const yearData: YearlyTrendData[] = [
       { name: (currentYear - 2).toString(), income: 48000 },
       { name: (currentYear - 1).toString(), income: 62000 },
       { name: currentYear.toString(), income: 78000 }
